@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Name Picker</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:#0d0d0f; --surface:#17171b; --surface2:#1f1f25; --border:#2a2a33;
+    --accent:#f5c842; --accent-dim:#f5c84222; --accent-shadow:#b89a00;
+    --accent2:#ff5c5c; --admin:#a78bfa; --admin-dim:#a78bfa22;
+    --text:#f0f0f0; --title-text:#000000; --muted:#666;
+  }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; padding:40px 20px; }
+  body::before { content:''; position:fixed; inset:0; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E"); pointer-events:none; z-index:0; }
+  .container { width:100%; max-width:600px; position:relative; z-index:1; }
+
+  /* Account pill */
+  .account-pill { position:fixed; top:16px; right:16px; z-index:50; display:flex; align-items:center; gap:8px; background:var(--surface); border:1px solid var(--border); border-radius:40px; padding:6px 14px 6px 6px; cursor:pointer; transition:border-color 0.2s,background 0.2s; user-select:none; }
+  .account-pill:hover { border-color:var(--accent); background:var(--surface2); }
+  .account-avatar { width:28px; height:28px; border-radius:50%; background:#444; color:#f0f0f0; font-family:'Bebas Neue',sans-serif; font-size:15px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .account-avatar.admin-av { background:var(--admin); color:#0d0d0f; }
+  .account-username { font-size:13px; font-weight:600; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .account-role-tag { font-size:10px; color:var(--muted); letter-spacing:1px; }
+
+  .account-dropdown { position:fixed; top:58px; right:16px; z-index:60; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:8px; min-width:190px; display:none; animation:fadeIn 0.15s ease; box-shadow:0 8px 32px #00000066; }
+  .account-dropdown.open { display:block; }
+  .dropdown-header { padding:8px 10px 12px; border-bottom:1px solid var(--border); margin-bottom:6px; }
+  .dropdown-header .dh-name { font-weight:600; font-size:14px; }
+  .dropdown-header .dh-sub { font-size:11px; color:var(--muted); margin-top:2px; }
+  .dropdown-item { display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:8px; cursor:pointer; font-size:13px; transition:background 0.15s; color:var(--text); }
+  .dropdown-item:hover { background:var(--surface2); }
+  .dropdown-item.danger { color:var(--accent2); }
+  .dropdown-item .di-icon { font-size:15px; width:18px; text-align:center; }
+
+  /* Fullscreen */
+  .fullscreen { position:fixed; inset:0; background:var(--bg); z-index:200; display:flex; align-items:center; justify-content:center; padding:24px; }
+  .screen-card { background:var(--surface); border:1px solid var(--border); border-radius:24px; padding:40px 32px; width:100%; max-width:380px; text-align:center; animation:modalIn 0.3s ease; }
+  .screen-icon { font-size:48px; margin-bottom:16px; }
+  .screen-card h2 { font-family:'Bebas Neue',sans-serif; font-size:32px; letter-spacing:3px; margin-bottom:8px; }
+  .screen-card p { font-size:14px; color:var(--muted); margin-bottom:20px; line-height:1.6; }
+  .screen-input { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:13px 16px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:15px; outline:none; transition:border-color 0.2s; margin-bottom:10px; text-align:center; }
+  .screen-input:focus { border-color:var(--accent); }
+  .screen-input.admin-focus:focus { border-color:var(--admin); }
+  .screen-error { font-size:12px; color:var(--accent2); min-height:18px; margin-bottom:8px; }
+  .screen-btn { width:100%; border:none; border-radius:10px; padding:13px; font-family:'Bebas Neue',sans-serif; font-size:21px; letter-spacing:2px; cursor:pointer; transition:opacity 0.15s; margin-bottom:10px; }
+  .screen-btn:hover:not(:disabled) { opacity:0.85; }
+  .screen-btn:disabled { opacity:0.5; cursor:not-allowed; }
+  .screen-btn.accent-btn { background:var(--accent); color:var(--title-text); }
+  .screen-btn.admin-btn  { background:var(--admin);  color:#0d0d0f; }
+  .screen-link { background:none; border:none; color:var(--muted); font-size:13px; cursor:pointer; text-decoration:underline; }
+  .screen-link:hover { color:var(--text); }
+  .screen-tab-row { display:flex; gap:0; margin-bottom:24px; background:var(--surface2); border-radius:10px; padding:4px; }
+  .screen-tab { flex:1; padding:8px; border:none; border-radius:8px; background:none; color:var(--muted); font-family:'DM Sans',sans-serif; font-size:14px; cursor:pointer; transition:background 0.15s,color 0.15s; }
+  .screen-tab.active { background:var(--surface); color:var(--text); font-weight:600; }
+  .success-icon { font-size:56px; margin-bottom:12px; }
+
+  /* Header */
+  header { text-align:center; margin-bottom:32px; margin-top:24px; }
+  h1 { font-family:'Bebas Neue',sans-serif; font-size:clamp(56px,10vw,88px); letter-spacing:4px; line-height:1; color:var(--accent); text-shadow:4px 4px 0 #00000066; cursor:pointer; transition:opacity 0.2s; user-select:none; }
+  h1:hover { opacity:0.85; }
+  .subtitle { color:var(--muted); font-size:13px; letter-spacing:2px; text-transform:uppercase; margin-top:6px; }
+  .title-edit-hint { font-size:11px; color:var(--muted); letter-spacing:1px; margin-top:6px; opacity:0; transition:opacity 0.2s; display:none; }
+  header:hover .title-edit-hint { opacity:1; }
+
+  /* Title editor */
+  .title-editor { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:20px 24px; margin-bottom:20px; display:none; }
+  .title-editor.open { display:block; animation:fadeIn 0.2s ease; }
+  .editor-label { font-size:10px; letter-spacing:2px; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:8px; }
+  .editor-row { display:flex; gap:20px; flex-wrap:wrap; margin-bottom:16px; }
+  .field-group { flex:1; min-width:140px; }
+  .color-swatches { display:flex; gap:8px; flex-wrap:wrap; }
+  .swatch { width:28px; height:28px; border-radius:50%; cursor:pointer; border:2px solid transparent; transition:transform 0.15s,border-color 0.15s; flex-shrink:0; }
+  .swatch:hover { transform:scale(1.15); }
+  .swatch.active { border-color:#fff; box-shadow:0 0 0 1px #00000088; }
+  .color-custom-wrap { width:28px; height:28px; border-radius:50%; overflow:hidden; border:2px solid var(--border); cursor:pointer; flex-shrink:0; transition:transform 0.15s; display:flex; align-items:center; justify-content:center; }
+  .color-custom-wrap:hover { transform:scale(1.15); }
+  input[type="color"] { width:40px; height:40px; border:none; background:none; cursor:pointer; padding:0; margin:-6px; }
+  .editor-divider { border:none; border-top:1px solid var(--border); margin:16px 0; }
+  .title-save-btn { background:var(--accent); color:var(--title-text); border:none; border-radius:8px; padding:9px 22px; font-family:'Bebas Neue',sans-serif; font-size:17px; letter-spacing:1px; cursor:pointer; transition:opacity 0.15s; }
+  .title-save-btn:hover { opacity:0.85; }
+
+  /* Result */
+  .result-box { background:var(--surface); border:2px solid var(--border); border-radius:16px; padding:36px 24px; text-align:center; margin-bottom:24px; min-height:160px; display:flex; flex-direction:column; align-items:center; justify-content:center; position:relative; overflow:hidden; }
+  .result-glow { position:absolute; inset:0; background:radial-gradient(ellipse at 50% 0%,var(--accent-dim) 0%,transparent 70%); pointer-events:none; }
+  .result-label { font-size:11px; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:14px; position:relative; }
+  .result-name { font-family:'Bebas Neue',sans-serif; font-size:56px; letter-spacing:3px; color:var(--accent); line-height:1; min-height:60px; position:relative; }
+  .result-name.rolling { animation:roll 0.08s infinite alternate; color:var(--text); opacity:0.7; }
+  @keyframes roll { from{transform:skewX(-2deg)} to{transform:skewX(2deg)} }
+  .pick-btn { margin-top:20px; background:var(--accent); color:var(--title-text); border:none; border-radius:10px; padding:14px 40px; font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:2px; cursor:pointer; transition:transform 0.1s,box-shadow 0.1s; box-shadow:0 4px 0 var(--accent-shadow); }
+  .pick-btn:hover { transform:translateY(-2px); box-shadow:0 6px 0 var(--accent-shadow); }
+  .pick-btn:active { transform:translateY(2px); box-shadow:0 2px 0 var(--accent-shadow); }
+  .pick-btn:disabled { opacity:0.4; cursor:not-allowed; transform:none; }
+
+  /* Section */
+  .section { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; margin-bottom:20px; }
+  .section-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; }
+  .section-title { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:2px; color:var(--text); }
+  .count-badge { background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:3px 12px; font-size:12px; color:var(--muted); }
+  .input-row { display:flex; gap:10px; }
+  input[type="text"] { flex:1; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 16px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:15px; outline:none; transition:border-color 0.2s; }
+  input[type="text"]:focus { border-color:var(--accent); }
+  input[type="text"]::placeholder { color:var(--muted); }
+  .add-btn { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 18px; color:var(--accent); font-size:22px; cursor:pointer; transition:background 0.2s; line-height:1; }
+  .add-btn:hover { background:var(--border); }
+  .name-list { display:flex; flex-direction:column; gap:8px; max-height:300px; overflow-y:auto; padding-right:4px; margin-top:16px; }
+  .name-list::-webkit-scrollbar { width:4px; }
+  .name-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+  .name-item { display:flex; align-items:center; gap:10px; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:10px 14px; animation:fadeIn 0.2s ease; }
+  .name-item.duplicate { background:#ff5c5c18; border-color:#ff5c5c; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes modalIn { from{opacity:0;transform:scale(0.95)} to{opacity:1;transform:scale(1)} }
+  .name-text { flex:1; font-size:15px; font-weight:500; }
+  .dupe-tag { font-size:10px; letter-spacing:1px; text-transform:uppercase; color:var(--accent2); background:#ff5c5c22; border:1px solid #ff5c5c55; border-radius:4px; padding:2px 7px; }
+  .remove-btn { background:none; border:none; color:var(--muted); cursor:pointer; font-size:20px; line-height:1; padding:0 2px; transition:color 0.2s; }
+  .remove-btn:hover { color:var(--accent2); }
+  .empty-state { text-align:center; color:var(--muted); font-size:13px; padding:24px 0; }
+  .clear-all-btn { background:none; border:none; color:var(--muted); font-size:12px; cursor:pointer; text-decoration:underline; text-transform:uppercase; letter-spacing:1px; margin-top:10px; }
+  .clear-all-btn:hover { color:var(--accent2); }
+  .lock-row { display:flex; align-items:center; gap:10px; margin-top:16px; padding-top:16px; border-top:1px solid var(--border); }
+  .lock-info { flex:1; font-size:13px; color:var(--muted); }
+  .lock-btn { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:7px 16px; color:var(--text); font-size:12px; letter-spacing:1px; text-transform:uppercase; cursor:pointer; transition:background 0.2s; white-space:nowrap; }
+  .lock-btn:hover { background:var(--border); }
+  .mode-badge { display:inline-block; font-size:11px; letter-spacing:2px; text-transform:uppercase; padding:3px 10px; border-radius:20px; margin-bottom:4px; font-weight:600; }
+  .mode-badge.owner  { background:var(--accent-dim); color:var(--accent); border:1px solid var(--accent); }
+  .mode-badge.admin  { background:var(--admin-dim);  color:var(--admin);  border:1px solid var(--admin); }
+  .mode-badge.viewer { background:#ffffff11; color:#999; border:1px solid #ffffff22; }
+
+  /* Modal */
+  .modal-overlay { display:none; position:fixed; inset:0; background:#00000099; backdrop-filter:blur(4px); z-index:100; align-items:center; justify-content:center; }
+  .modal-overlay.open { display:flex; }
+  .modal { background:var(--surface); border:1px solid var(--border); border-radius:20px; padding:32px; width:90%; max-width:400px; animation:modalIn 0.2s ease; }
+  .modal h2 { font-family:'Bebas Neue',sans-serif; font-size:28px; letter-spacing:2px; margin-bottom:6px; }
+  .modal p { font-size:13px; color:var(--muted); margin-bottom:16px; line-height:1.5; }
+  .modal input[type="text"],.modal input[type="password"] { width:100%; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 16px; color:var(--text); font-family:'DM Sans',sans-serif; font-size:15px; outline:none; transition:border-color 0.2s; margin-bottom:12px; }
+  .modal input:focus { border-color:var(--accent); }
+  .modal input::placeholder { color:var(--muted); }
+  .modal-error { font-size:12px; color:var(--accent2); text-align:center; margin-bottom:10px; min-height:18px; }
+  .modal-btns { display:flex; gap:10px; }
+  .modal-btns button { flex:1; padding:12px; border-radius:10px; font-family:'Bebas Neue',sans-serif; font-size:18px; letter-spacing:1px; cursor:pointer; border:1px solid var(--border); background:var(--surface2); color:var(--text); transition:filter 0.15s; }
+  .modal-btns button.primary { background:var(--accent); color:var(--title-text); border-color:var(--accent); }
+  .modal-btns button.admin-primary { background:var(--admin); color:#0d0d0f; border-color:var(--admin); }
+  .modal-btns button:hover { filter:brightness(1.1); }
+  .info-box { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 16px; margin-bottom:14px; }
+  .info-box .info-label { font-size:10px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-bottom:4px; }
+  .info-box .info-value { font-family:'Bebas Neue',sans-serif; font-size:22px; letter-spacing:3px; color:var(--accent); word-break:break-all; }
+  .info-box .info-value.admin-color { color:var(--admin); }
+  .link-row { display:flex; gap:8px; align-items:center; margin-bottom:14px; }
+  .link-row input { flex:1; font-size:12px; color:var(--muted); padding:9px 12px; }
+  .copy-btn { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:9px 14px; font-size:13px; color:var(--text); cursor:pointer; white-space:nowrap; transition:background 0.2s; flex-shrink:0; }
+  .copy-btn:hover { background:var(--border); }
+  .copy-btn.copied { color:#5cffa0; border-color:#5cffa044; }
+  .modal-divider { border:none; border-top:1px solid var(--border); margin:18px 0; }
+  .stats-row { display:flex; gap:10px; margin-bottom:16px; }
+  .stat-box { flex:1; background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px; text-align:center; }
+  .stat-num { font-family:'Bebas Neue',sans-serif; font-size:28px; color:var(--accent); letter-spacing:2px; }
+  .stat-label { font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+</style>
+</head>
+<body>
+
+<!-- Account Pill -->
+<div class="account-pill" id="accountPill" onclick="toggleDropdown()" style="display:none">
+  <div class="account-avatar" id="accountAvatar">?</div>
+  <div>
+    <div class="account-username" id="accountUsername">…</div>
+    <div class="account-role-tag" id="accountRoleTag">Viewer</div>
+  </div>
+</div>
+<div class="account-dropdown" id="accountDropdown">
+  <div class="dropdown-header">
+    <div class="dh-name" id="dropdownName">—</div>
+    <div class="dh-sub" id="dropdownSub">Viewer · 0 sessions</div>
+  </div>
+  <div class="dropdown-item" onclick="openChangeUsername()"><span class="di-icon">✏️</span> Change Username</div>
+  <div class="dropdown-item" onclick="openChangePassword()"><span class="di-icon">🔑</span> Change Password</div>
+  <div class="dropdown-item" onclick="openMyStats()"><span class="di-icon">📊</span> My Sessions</div>
+  <div class="dropdown-item danger" onclick="logOut()"><span class="di-icon">🚪</span> Log Out</div>
+</div>
+
+<!-- Auth Screen -->
+<div class="fullscreen" id="authScreen">
+  <div class="screen-card">
+    <div class="screen-icon">🎲</div>
+    <h2 style="color:var(--accent)">NAME PICKER</h2>
+    <p>Create an account or log in. Your role and history are saved across all devices.</p>
+    <div class="screen-tab-row">
+      <button class="screen-tab active" id="tabLogin" onclick="switchTab('login')">Log In</button>
+      <button class="screen-tab" id="tabRegister" onclick="switchTab('register')">Register</button>
+    </div>
+    <div id="loginForm">
+      <input class="screen-input" type="text" id="loginUsername" placeholder="Username" maxlength="30"
+        onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
+      <input class="screen-input" type="password" id="loginPassword" placeholder="Password"
+        onkeydown="if(event.key==='Enter')submitLogin()">
+      <div class="screen-error" id="loginError"></div>
+      <button class="screen-btn accent-btn" id="loginBtn" onclick="submitLogin()">LOG IN</button>
+    </div>
+    <div id="registerForm" style="display:none">
+      <input class="screen-input" type="text" id="regUsername" placeholder="Choose a username" maxlength="30"
+        onkeydown="if(event.key==='Enter')document.getElementById('regPassword').focus()">
+      <input class="screen-input" type="password" id="regPassword" placeholder="Password (min 4 chars)"
+        onkeydown="if(event.key==='Enter')submitRegister()">
+      <div class="screen-error" id="registerError"></div>
+      <button class="screen-btn accent-btn" id="registerBtn" onclick="submitRegister()">CREATE ACCOUNT</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin Join Screen -->
+<div class="fullscreen" id="joinScreen" style="display:none">
+  <div class="screen-card">
+    <div id="joinPrompt">
+      <div class="screen-icon">⚡</div>
+      <h2 style="color:var(--admin)">ADMIN ACCESS</h2>
+      <p>Enter the admin password to upgrade your account to Admin.</p>
+      <input class="screen-input admin-focus" type="password" id="joinPasswordInput"
+        placeholder="Admin password…" onkeydown="if(event.key==='Enter')submitJoin()">
+      <div class="screen-error" id="joinError"></div>
+      <button class="screen-btn admin-btn" onclick="submitJoin()">UNLOCK ADMIN</button>
+      <button class="screen-link" onclick="skipJoin()">Continue as viewer instead</button>
+    </div>
+    <div id="joinSuccess" style="display:none">
+      <div class="success-icon">✅</div>
+      <h2 style="color:var(--admin)">YOU'RE AN ADMIN</h2>
+      <p id="joinSuccessMsg">Admin access granted!</p>
+      <button class="screen-btn admin-btn" onclick="enterApp()">LET'S GO</button>
+    </div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div class="container" id="appContainer" style="display:none">
+  <header>
+    <h1 id="mainTitle" onclick="toggleTitleEditor()">PICK ONE</h1>
+    <p class="subtitle">Random Name Selector</p>
+    <p class="title-edit-hint" id="editHint">✎ Click title to customize</p>
+  </header>
+
+  <div class="title-editor" id="titleEditor">
+    <div class="editor-row">
+      <div class="field-group">
+        <span class="editor-label">Title Text</span>
+        <input type="text" id="titleInput" placeholder="e.g. Giveaway Time!" maxlength="24"
+          oninput="previewTitle()" onkeydown="if(event.key==='Enter')saveTitleSettings()">
+      </div>
+    </div>
+    <hr class="editor-divider">
+    <div class="editor-row">
+      <div class="field-group">
+        <span class="editor-label">Title &amp; Accent Color</span>
+        <div class="color-swatches" id="titleSwatches">
+          <div class="swatch active" style="background:#f5c842" data-color="#f5c842" onclick="selectTitleSwatch(this)"></div>
+          <div class="swatch" style="background:#ff5c5c" data-color="#ff5c5c" onclick="selectTitleSwatch(this)"></div>
+          <div class="swatch" style="background:#5caaff" data-color="#5caaff" onclick="selectTitleSwatch(this)"></div>
+          <div class="swatch" style="background:#5cffa0" data-color="#5cffa0" onclick="selectTitleSwatch(this)"></div>
+          <div class="swatch" style="background:#d45cff" data-color="#d45cff" onclick="selectTitleSwatch(this)"></div>
+          <div class="swatch" style="background:#ff9f40" data-color="#ff9f40" onclick="selectTitleSwatch(this)"></div>
+          <div class="swatch" style="background:#ffffff" data-color="#ffffff" onclick="selectTitleSwatch(this)"></div>
+          <label class="color-custom-wrap"><input type="color" id="titleColorCustom" value="#f5c842" oninput="customTitleColor(this.value)"></label>
+        </div>
+      </div>
+      <div class="field-group">
+        <span class="editor-label">Button Text Color</span>
+        <div class="color-swatches" id="textSwatches">
+          <div class="swatch active" style="background:#000000;border:1px solid #444" data-color="#000000" onclick="selectTextSwatch(this)"></div>
+          <div class="swatch" style="background:#ffffff;border:1px solid #444" data-color="#ffffff" onclick="selectTextSwatch(this)"></div>
+          <div class="swatch" style="background:#1a1a1a" data-color="#1a1a1a" onclick="selectTextSwatch(this)"></div>
+          <div class="swatch" style="background:#0d0d0f" data-color="#0d0d0f" onclick="selectTextSwatch(this)"></div>
+          <div class="swatch" style="background:#1a0a00" data-color="#1a0a00" onclick="selectTextSwatch(this)"></div>
+          <div class="swatch" style="background:#0a001a" data-color="#0a001a" onclick="selectTextSwatch(this)"></div>
+          <div class="swatch" style="background:#001a0a" data-color="#001a0a" onclick="selectTextSwatch(this)"></div>
+          <label class="color-custom-wrap"><input type="color" id="textColorCustom" value="#000000" oninput="customTextColor(this.value)"></label>
+        </div>
+      </div>
+    </div>
+    <button class="title-save-btn" onclick="saveTitleSettings()">SAVE</button>
+  </div>
+
+  <div class="result-box">
+    <div class="result-glow"></div>
+    <div class="result-label">Selected</div>
+    <div class="result-name" id="resultName">—</div>
+    <button class="pick-btn" id="pickBtn" onclick="pickName()" disabled>PICK A NAME</button>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <div>
+        <div class="mode-badge viewer" id="modeBadge">● Viewer</div>
+        <div class="section-title">NAME LIST</div>
+      </div>
+      <span class="count-badge" id="countBadge">0 names</span>
+    </div>
+    <div class="input-row" id="inputRow" style="display:none">
+      <input type="text" id="nameInput" placeholder="Enter a name…" maxlength="40"
+        onkeydown="if(event.key==='Enter')addName()">
+      <button class="add-btn" onclick="addName()">+</button>
+    </div>
+    <div class="name-list" id="nameList"><div class="empty-state">No names yet.</div></div>
+    <button class="clear-all-btn" id="clearAllBtn" style="display:none" onclick="clearAll()">Clear all</button>
+    <div class="lock-row">
+      <div style="font-size:18px">🔒</div>
+      <div class="lock-info" id="lockInfo">Viewing only.</div>
+      <button class="lock-btn" id="lockBtn" onclick="openAccessModal()" style="display:none">Manage Access</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal"><div id="modalContent"></div></div>
+</div>
+
+<script>
+// ── CONFIG — paste your Railway URL here after deploying ──────────────────────
+const API = 'https://YOUR-RAILWAY-URL.railway.app';
+const OWNER_TOKEN = 'owner-secret'; // must match OWNER_TOKEN env var on Railway
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const LS    = (k,fb)  => { try{const v=localStorage.getItem(k);return v!==null?v:fb}catch{return fb} };
+const LSJ   = (k,fb)  => { try{const v=localStorage.getItem(k);return v?JSON.parse(v):fb}catch{return fb} };
+const LSSet = (k,v)   => { try{localStorage.setItem(k,v)}catch{} };
+const LSRm  = k       => { try{localStorage.removeItem(k)}catch{} };
+const esc   = s       => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function darken(hex,pct=0.35){const n=parseInt(hex.replace('#',''),16);const r=Math.max(0,Math.round(((n>>16)&0xff)*(1-pct)));const g=Math.max(0,Math.round(((n>>8)&0xff)*(1-pct)));const b=Math.max(0,Math.round((n&0xff)*(1-pct)));return`#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;}
+
+async function api(method, path, body, useAuth=true) {
+  const headers = {'Content-Type':'application/json'};
+  if (useAuth) { const t=LS('authToken',''); if(t) headers['Authorization']='Bearer '+t; }
+  const res  = await fetch(API+path, {method, headers, body: body?JSON.stringify(body):undefined});
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error||'Request failed');
+  return data;
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let names          = LSJ('pickerNames',[]);
+let ownerPin       = LS('ownerPin','');
+let adminPassword  = LS('adminPassword','');
+let isOwner        = !ownerPin;
+let isAdmin        = false;
+let rolling        = false;
+let titleText      = LS('pickerTitle','PICK ONE');
+let titleColor     = LS('pickerTitleColor','#f5c842');
+let titleTextColor = LS('pickerTitleTextColor','#000000');
+let currentUser    = null;
+
+const canEdit      = () => isOwner || isAdmin;
+const canEditTitle = () => isOwner || isAdmin;
+const canManage    = () => isOwner;
+
+function save(){LSSet('pickerNames',JSON.stringify(names));LSSet('ownerPin',ownerPin);LSSet('adminPassword',adminPassword);LSSet('pickerTitle',titleText);LSSet('pickerTitleColor',titleColor);LSSet('pickerTitleTextColor',titleTextColor);}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+function switchTab(tab){
+  document.getElementById('loginForm').style.display    = tab==='login'?'':'none';
+  document.getElementById('registerForm').style.display = tab==='register'?'':'none';
+  document.getElementById('tabLogin').classList.toggle('active',    tab==='login');
+  document.getElementById('tabRegister').classList.toggle('active', tab==='register');
+  document.getElementById('loginError').textContent='';
+  document.getElementById('registerError').textContent='';
+}
+
+async function submitLogin(){
+  const username=document.getElementById('loginUsername').value.trim();
+  const password=document.getElementById('loginPassword').value;
+  const errEl=document.getElementById('loginError');
+  const btn=document.getElementById('loginBtn');
+  errEl.textContent='';
+  if(!username||!password){errEl.textContent='Fill in both fields.';return;}
+  btn.disabled=true; btn.textContent='LOGGING IN…';
+  try{
+    const data=await api('POST','/auth/login',{username,password},false);
+    LSSet('authToken',data.token);
+    currentUser=data.user;
+    onLoggedIn();
+  }catch(e){errEl.textContent=e.message; btn.disabled=false; btn.textContent='LOG IN';}
+}
+
+async function submitRegister(){
+  const username=document.getElementById('regUsername').value.trim();
+  const password=document.getElementById('regPassword').value;
+  const errEl=document.getElementById('registerError');
+  const btn=document.getElementById('registerBtn');
+  errEl.textContent='';
+  if(!username||!password){errEl.textContent='Fill in both fields.';return;}
+  btn.disabled=true; btn.textContent='CREATING…';
+  try{
+    const data=await api('POST','/auth/register',{username,password},false);
+    LSSet('authToken',data.token);
+    currentUser=data.user;
+    onLoggedIn();
+  }catch(e){errEl.textContent=e.message; btn.disabled=false; btn.textContent='CREATE ACCOUNT';}
+}
+
+function onLoggedIn(){
+  document.getElementById('authScreen').style.display='none';
+  isAdmin = currentUser.role==='admin';
+  checkJoinFlow();
+}
+
+// ── Account pill ──────────────────────────────────────────────────────────────
+function updatePill(){
+  if(!currentUser)return;
+  const role=isOwner?'Owner':isAdmin?'Admin':'Viewer';
+  document.getElementById('accountPill').style.display='flex';
+  document.getElementById('accountAvatar').textContent=currentUser.username[0].toUpperCase();
+  document.getElementById('accountUsername').textContent=currentUser.username;
+  document.getElementById('accountRoleTag').textContent=role;
+  document.getElementById('dropdownName').textContent=currentUser.username;
+  document.getElementById('dropdownSub').textContent=`${role} · ${currentUser.session_count??0} session${currentUser.session_count!==1?'s':''}`;
+  const av=document.getElementById('accountAvatar');
+  av.className='account-avatar';
+  if(isOwner){av.style.background=titleColor;av.style.color=titleTextColor;}
+  else if(isAdmin){av.classList.add('admin-av');av.style.background='';av.style.color='';}
+  else{av.style.background='#444';av.style.color='#f0f0f0';}
+}
+
+function toggleDropdown(){document.getElementById('accountDropdown').classList.toggle('open');}
+document.addEventListener('click',e=>{
+  const pill=document.getElementById('accountPill');
+  const drop=document.getElementById('accountDropdown');
+  if(!pill.contains(e.target)&&!drop.contains(e.target))drop.classList.remove('open');
+});
+
+function openChangeUsername(){
+  document.getElementById('accountDropdown').classList.remove('open');
+  document.getElementById('modalContent').innerHTML=`
+    <h2>✏️ Change Username</h2>
+    <p>Pick a new username. Your role and history stay the same.</p>
+    <input type="text" id="newUsernameInput" placeholder="New username…" maxlength="30" value="${esc(currentUser.username)}"
+      onkeydown="if(event.key==='Enter')submitChangeUsername()">
+    <div class="modal-error" id="modalErr"></div>
+    <div class="modal-btns"><button onclick="closeModal()">Cancel</button><button class="primary" onclick="submitChangeUsername()">Save</button></div>
+  `;
+  openModal();
+  setTimeout(()=>{const el=document.getElementById('newUsernameInput');if(el){el.focus();el.select();}},50);
+}
+async function submitChangeUsername(){
+  const v=document.getElementById('newUsernameInput').value.trim();
+  if(!v){document.getElementById('modalErr').textContent='Username cannot be empty.';return;}
+  try{
+    const data=await api('PUT','/auth/username',{username:v});
+    LSSet('authToken',data.token);
+    currentUser.username=data.username;
+    closeModal();updatePill();render();
+  }catch(e){document.getElementById('modalErr').textContent=e.message;}
+}
+
+function openChangePassword(){
+  document.getElementById('accountDropdown').classList.remove('open');
+  document.getElementById('modalContent').innerHTML=`
+    <h2>🔑 Change Password</h2>
+    <p>Enter your current password, then choose a new one.</p>
+    <input type="password" id="oldPass" placeholder="Current password…" maxlength="100">
+    <input type="password" id="newPass" placeholder="New password (min 4 chars)…" maxlength="100"
+      onkeydown="if(event.key==='Enter')submitChangePassword()">
+    <div class="modal-error" id="modalErr"></div>
+    <div class="modal-btns"><button onclick="closeModal()">Cancel</button><button class="primary" onclick="submitChangePassword()">Save</button></div>
+  `;
+  openModal();
+}
+async function submitChangePassword(){
+  const oldPass=document.getElementById('oldPass').value;
+  const newPass=document.getElementById('newPass').value;
+  if(!oldPass||!newPass){document.getElementById('modalErr').textContent='Fill in both fields.';return;}
+  if(newPass.length<4){document.getElementById('modalErr').textContent='New password must be at least 4 characters.';return;}
+  try{
+    await api('POST','/auth/login',{username:currentUser.username,password:oldPass},false);
+    const data=await api('PUT','/auth/password',{newPassword:newPass});
+    LSSet('authToken',data.token);
+    closeModal();
+    alert('Password updated!');
+  }catch(e){document.getElementById('modalErr').textContent=e.message;}
+}
+
+async function openMyStats(){
+  document.getElementById('accountDropdown').classList.remove('open');
+  document.getElementById('modalContent').innerHTML=`<h2>📊 My Sessions</h2><p style="color:var(--muted)">Loading…</p>`;
+  openModal();
+  try{
+    const [sessions,meData]=await Promise.all([api('GET','/sessions/mine'),api('GET','/auth/me')]);
+    currentUser.session_count=meData.session_count;
+    updatePill();
+    document.getElementById('modalContent').innerHTML=`
+      <h2>📊 My Sessions</h2>
+      <div class="stats-row">
+        <div class="stat-box"><div class="stat-num">${meData.session_count}</div><div class="stat-label">Total Sessions</div></div>
+        <div class="stat-box"><div class="stat-num">${meData.role[0].toUpperCase()+meData.role.slice(1)}</div><div class="stat-label">Role</div></div>
+      </div>
+      <p style="margin-bottom:12px;font-size:12px;color:var(--muted)">Member since ${new Date(meData.created_at).toLocaleDateString()}</p>
+      ${sessions.length===0?'<p>No sessions recorded yet.</p>':
+        sessions.slice(0,10).map(s=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px"><span>Session #${s.id}</span><span style="color:var(--muted)">${new Date(s.joined_at).toLocaleDateString()}</span></div>`).join('')}
+      <div class="modal-btns" style="margin-top:16px"><button onclick="closeModal()">Close</button></div>
+    `;
+  }catch(e){document.getElementById('modalContent').innerHTML=`<h2>📊 My Sessions</h2><p>Could not load data.</p><div class="modal-btns"><button onclick="closeModal()">Close</button></div>`;}
+}
+
+function logOut(){
+  document.getElementById('accountDropdown').classList.remove('open');
+  if(!confirm('Log out?'))return;
+  LSRm('authToken');
+  location.reload();
+}
+
+// ── Accent / Title ────────────────────────────────────────────────────────────
+function applyAccent(c,tc){const r=document.documentElement;r.style.setProperty('--accent',c);r.style.setProperty('--accent-dim',c+'28');r.style.setProperty('--accent-shadow',darken(c));r.style.setProperty('--title-text',tc);}
+function applyTitle(){document.getElementById('mainTitle').textContent=titleText;applyAccent(titleColor,titleTextColor);}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+function render(){
+  const freq={};
+  names.forEach(n=>freq[n.toLowerCase()]=(freq[n.toLowerCase()]||0)+1);
+  document.getElementById('countBadge').textContent=`${names.length} name${names.length!==1?'s':''}`;
+  document.getElementById('pickBtn').disabled=names.length===0||rolling;
+  document.getElementById('inputRow').style.display=canEdit()?'flex':'none';
+  document.getElementById('clearAllBtn').style.display=canEdit()&&names.length>0?'block':'none';
+  document.getElementById('editHint').style.display=canEditTitle()?'block':'none';
+  document.getElementById('lockBtn').style.display=canManage()?'inline-block':'none';
+
+  const badge=document.getElementById('modeBadge');
+  badge.style.cssText='';
+  if(isOwner){badge.textContent='● Owner';badge.className='mode-badge owner';badge.style.color=titleColor;badge.style.borderColor=titleColor;badge.style.background=titleColor+'28';}
+  else if(isAdmin){badge.textContent='⚡ Admin';badge.className='mode-badge admin';}
+  else{badge.textContent='● Viewer';badge.className='mode-badge viewer';}
+
+  const uname=currentUser?currentUser.username:'you';
+  document.getElementById('lockInfo').textContent=isOwner?(adminPassword?'Admin password set — share the invite link.':'Set an admin password to invite trusted people.'):isAdmin?`Editing as ${uname}.`:`Viewing as ${uname}.`;
+
+  const list=document.getElementById('nameList');
+  if(names.length===0){list.innerHTML='<div class="empty-state">No names yet. Add some above!</div>';updatePill();return;}
+  list.innerHTML='';
+  names.forEach((name,i)=>{
+    const isDupe=freq[name.toLowerCase()]>1;
+    const div=document.createElement('div');
+    div.className='name-item'+(isDupe?' duplicate':'');
+    div.innerHTML=`<span class="name-text">${esc(name)}</span>${isDupe?'<span class="dupe-tag">Duplicate</span>':''}${canEdit()?`<button class="remove-btn" onclick="removeName(${i})">×</button>`:''}`;
+    list.appendChild(div);
+  });
+  updatePill();
+}
+
+// ── Name actions ──────────────────────────────────────────────────────────────
+function addName(){if(!canEdit())return;const inp=document.getElementById('nameInput');const name=inp.value.trim();if(!name)return;names.push(name);save();inp.value='';inp.focus();render();}
+function removeName(i){if(!canEdit())return;names.splice(i,1);save();render();}
+function clearAll(){if(!canEdit())return;if(!confirm('Remove all names?'))return;names=[];save();document.getElementById('resultName').textContent='—';render();}
+function pickName(){
+  if(names.length===0||rolling)return;
+  rolling=true;render();
+  const el=document.getElementById('resultName');
+  el.classList.add('rolling');
+  let ticks=0,total=20+Math.floor(Math.random()*15);
+  const iv=setInterval(()=>{el.textContent=names[Math.floor(Math.random()*names.length)];if(++ticks>=total){clearInterval(iv);el.textContent=names[Math.floor(Math.random()*names.length)];el.classList.remove('rolling');rolling=false;render();}},80);
+}
+
+// ── Title editor ──────────────────────────────────────────────────────────────
+function toggleTitleEditor(){if(!canEditTitle())return;const ed=document.getElementById('titleEditor');const open=ed.classList.toggle('open');if(open){document.getElementById('titleInput').value=titleText;document.getElementById('titleColorCustom').value=titleColor;document.getElementById('textColorCustom').value=titleTextColor;markSwatch('titleSwatches',titleColor);markSwatch('textSwatches',titleTextColor);}}
+function previewTitle(){const v=document.getElementById('titleInput').value.trim();document.getElementById('mainTitle').textContent=v||titleText;}
+function selectTitleSwatch(el){clearSwatches('titleSwatches');el.classList.add('active');document.getElementById('titleColorCustom').value=el.dataset.color;applyAccent(el.dataset.color,titleTextColor);}
+function customTitleColor(c){clearSwatches('titleSwatches');applyAccent(c,titleTextColor);}
+function selectTextSwatch(el){clearSwatches('textSwatches');el.classList.add('active');document.getElementById('textColorCustom').value=el.dataset.color;document.documentElement.style.setProperty('--title-text',el.dataset.color);}
+function customTextColor(c){clearSwatches('textSwatches');document.documentElement.style.setProperty('--title-text',c);}
+function clearSwatches(id){document.getElementById(id).querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));}
+function markSwatch(id,color){clearSwatches(id);const el=document.getElementById(id).querySelector(`[data-color="${color}"]`);if(el)el.classList.add('active');}
+function saveTitleSettings(){const v=document.getElementById('titleInput').value.trim();if(v)titleText=v;titleColor=document.getElementById('titleColorCustom').value;titleTextColor=document.getElementById('textColorCustom').value;save();applyTitle();render();document.getElementById('titleEditor').classList.remove('open');}
+
+// ── Access modal ──────────────────────────────────────────────────────────────
+function openAccessModal(){
+  if(!isOwner)return;
+  const inviteLink=window.location.href.split('?')[0]+'?join';
+  document.getElementById('modalContent').innerHTML=`
+    <h2>🔒 Manage Access</h2>
+    <p>Set an admin password then share the invite link. Logged-in users who enter the password get <strong style="color:var(--admin)">⚡ Admin</strong> — permanently on their account.</p>
+    <span class="editor-label" style="margin-bottom:6px;display:block">Admin Password</span>
+    ${adminPassword?`<div class="info-box" style="margin-bottom:10px"><div class="info-label">Currently set</div><div class="info-value admin-color">••••••••</div></div>`:''}
+    <input type="text" id="newAdminPass" placeholder="${adminPassword?'Update password…':'Set a password…'}" maxlength="32"
+      onkeydown="if(event.key==='Enter')saveAdminPassword()">
+    <div class="modal-error" id="modalErr"></div>
+    <div class="modal-btns" style="margin-bottom:${adminPassword?'18px':'0'}">
+      ${adminPassword?`<button onclick="removeAdminPassword()" style="color:var(--accent2)">Remove</button>`:''}
+      <button class="admin-primary" onclick="saveAdminPassword()">${adminPassword?'Update':'Set Password'}</button>
+    </div>
+    ${adminPassword?`
+      <hr class="modal-divider">
+      <span class="editor-label" style="margin-bottom:6px;display:block">Invite Link</span>
+      <p style="margin-bottom:10px">Users must be logged in when they open it.</p>
+      <div class="link-row">
+        <input type="text" id="inviteLinkInput" value="${inviteLink}" readonly style="font-size:12px;color:var(--muted);">
+        <button class="copy-btn" id="copyBtn" onclick="copyInviteLink('${inviteLink}')">Copy</button>
+      </div>
+    `:''}
+    <hr class="modal-divider">
+    <div class="modal-btns"><button onclick="closeModal()">Done</button></div>
+  `;
+  openModal();
+}
+async function saveAdminPassword(){
+  const v=document.getElementById('newAdminPass').value.trim();
+  if(!v){document.getElementById('modalErr').textContent='Password cannot be empty.';return;}
+  try{await api('POST','/owner/set-admin-password',{ownerToken:OWNER_TOKEN,adminPassword:v},false);adminPassword=v;save();closeModal();openAccessModal();}
+  catch(e){document.getElementById('modalErr').textContent=e.message;}
+}
+async function removeAdminPassword(){
+  try{await api('DELETE','/owner/remove-admin-password',{ownerToken:OWNER_TOKEN},false);adminPassword='';save();closeModal();openAccessModal();}
+  catch(e){alert(e.message);}
+}
+function copyInviteLink(link){navigator.clipboard.writeText(link).then(()=>{const btn=document.getElementById('copyBtn');btn.textContent='Copied!';btn.classList.add('copied');setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied');},2000);}).catch(()=>{document.getElementById('inviteLinkInput').select();document.execCommand('copy');});}
+function openModal(){document.getElementById('modalOverlay').classList.add('open');}
+function closeModal(){document.getElementById('modalOverlay').classList.remove('open');}
+document.getElementById('modalOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeModal();});
+
+// ── Admin join ────────────────────────────────────────────────────────────────
+function checkJoinFlow(){
+  if(!window.location.search.includes('join')){showApp();return;}
+  if(!adminPassword){skipJoin();return;}
+  document.getElementById('joinScreen').style.display='flex';
+  setTimeout(()=>document.getElementById('joinPasswordInput').focus(),100);
+}
+async function submitJoin(){
+  const v=document.getElementById('joinPasswordInput').value;
+  const errEl=document.getElementById('joinError');
+  errEl.textContent='';
+  try{
+    const data=await api('POST','/auth/upgrade',{adminPassword:v});
+    LSSet('authToken',data.token);
+    isAdmin=true;
+    currentUser.role='admin';
+    await api('POST','/sessions/join');
+    if(currentUser.session_count!==undefined)currentUser.session_count++;
+    document.getElementById('joinPrompt').style.display='none';
+    document.getElementById('joinSuccessMsg').textContent=`Welcome, ${currentUser.username}! You now have permanent admin access.`;
+    document.getElementById('joinSuccess').style.display='block';
+  }catch(e){errEl.textContent=e.message;document.getElementById('joinPasswordInput').value='';document.getElementById('joinPasswordInput').focus();}
+}
+function enterApp(){document.getElementById('joinScreen').style.display='none';history.replaceState(null,'',window.location.pathname);showApp();}
+function skipJoin(){document.getElementById('joinScreen').style.display='none';history.replaceState(null,'',window.location.pathname);showApp();}
+function showApp(){document.getElementById('appContainer').style.display='';applyTitle();render();}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+if(!ownerPin) isOwner=true;
+
+(async()=>{
+  const token=LS('authToken','');
+  if(token){
+    try{
+      currentUser=await api('GET','/auth/me');
+      isAdmin=currentUser.role==='admin';
+      document.getElementById('authScreen').style.display='none';
+      onLoggedIn();
+    }catch{LSRm('authToken');}
+  }
+  // If no valid token, authScreen stays visible
+})();
+</script>
+</body>
+</html>
