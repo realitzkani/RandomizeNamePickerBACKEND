@@ -279,6 +279,24 @@ app.delete('/rooms/:code', requireAuth, wrap((req, res) => {
   res.json({ ok:true });
 }));
 
+// POST /rooms/:code/kick — owner/admin kicks a member by username
+app.post('/rooms/:code/kick', requireAuth, wrap((req, res) => {
+  const { username } = req.body;
+  if(!username) return res.status(400).json({ error:'Username required.' });
+  const room = db.prepare('SELECT * FROM rooms WHERE code=?').get(req.params.code);
+  if(!room) return res.status(404).json({ error:'Room not found.' });
+  // Must be owner or admin in the room
+  const me = db.prepare('SELECT role FROM room_members WHERE room_code=? AND user_id=?').get(req.params.code, req.user.id);
+  if(!me || (me.role !== 'owner' && me.role !== 'admin')) return res.status(403).json({ error:'Not authorized.' });
+  const target = db.prepare('SELECT id FROM users WHERE username=?').get(username);
+  if(!target) return res.status(404).json({ error:'User not found.' });
+  // Can't kick owner
+  const targetMem = db.prepare('SELECT role FROM room_members WHERE room_code=? AND user_id=?').get(req.params.code, target.id);
+  if(targetMem && targetMem.role === 'owner') return res.status(403).json({ error:'Cannot kick the owner.' });
+  db.prepare('DELETE FROM room_members WHERE room_code=? AND user_id=?').run(req.params.code, target.id);
+  res.json({ ok:true });
+}));
+
 // POST /rooms/:code/leave — remove member from room
 app.post('/rooms/:code/leave', requireAuth, wrap((req, res) => {
   db.prepare('DELETE FROM room_members WHERE room_code=? AND user_id=?').run(req.params.code, req.user.id);
