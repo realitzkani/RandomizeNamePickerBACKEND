@@ -59,7 +59,16 @@ db.exec(`
   );
 `);
 
+// Safe migrations
 try { db.exec(`ALTER TABLE users ADD COLUMN username_changed_at TEXT DEFAULT NULL`); } catch {}
+// Rename old 'sessions' table to 'user_sessions' if it exists and user_sessions doesn't
+try {
+  const oldExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sessions'").get();
+  const newExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='user_sessions'").get();
+  if (oldExists && !newExists) {
+    db.exec("ALTER TABLE sessions RENAME TO user_sessions");
+  }
+} catch {}
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(cors({ origin:'*', methods:['GET','POST','PUT','DELETE','OPTIONS'], allowedHeaders:['Content-Type','Authorization'] }));
