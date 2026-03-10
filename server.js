@@ -279,6 +279,12 @@ app.delete('/rooms/:code', requireAuth, wrap((req, res) => {
   res.json({ ok:true });
 }));
 
+// POST /rooms/:code/leave — remove member from room
+app.post('/rooms/:code/leave', requireAuth, wrap((req, res) => {
+  db.prepare('DELETE FROM room_members WHERE room_code=? AND user_id=?').run(req.params.code, req.user.id);
+  res.json({ ok:true });
+}));
+
 // ── Names ─────────────────────────────────────────────────────────────────────
 app.get('/names', requireAuth, wrap((req, res) => {
   res.json(db.prepare('SELECT name FROM picker_names ORDER BY added_at').all().map(r=>r.name));
