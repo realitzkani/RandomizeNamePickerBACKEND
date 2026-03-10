@@ -52,6 +52,8 @@ const schema = [
     owner_id INTEGER NOT NULL,
     names TEXT NOT NULL DEFAULT '[]',
     last_pick TEXT DEFAULT NULL,
+    title_color TEXT DEFAULT '#f5c842',
+    title_text_color TEXT DEFAULT '#000000',
     active INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (owner_id) REFERENCES users(id)
@@ -76,6 +78,9 @@ const migrations = [
    SELECT id, user_id, joined_at FROM sessions`
 ];
 migrations.forEach(sql => { try { db.exec(sql); } catch {} });
+// Migrate color columns
+try { db.exec(`ALTER TABLE rooms ADD COLUMN title_color TEXT DEFAULT '#f5c842'`); } catch {}
+try { db.exec(`ALTER TABLE rooms ADD COLUMN title_text_color TEXT DEFAULT '#000000'`); } catch {}
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(cors({ origin:'*', methods:['GET','POST','PUT','DELETE','OPTIONS'], allowedHeaders:['Content-Type','Authorization'] }));
@@ -225,6 +230,8 @@ app.get('/rooms/:code', requireAuth, wrap((req, res) => {
     code: room.code,
     names: JSON.parse(room.names),
     last_pick: room.last_pick,
+    title_color: room.title_color || '#f5c842',
+    title_text_color: room.title_text_color || '#000000',
     active: !!room.active,
     owner_id: room.owner_id,
     my_room_role: me ? me.role : 'viewer',
@@ -265,9 +272,11 @@ app.put('/rooms/:code', requireAuth, wrap((req, res) => {
     const mem = db.prepare('SELECT role FROM room_members WHERE room_code=? AND user_id=?').get(req.params.code, req.user.id);
     if (!mem || mem.role === 'viewer') return res.status(403).json({ error:'Not authorized.' });
   }
-  const { names, last_pick } = req.body;
+  const { names, last_pick, title_color, title_text_color } = req.body;
   if (names !== undefined) db.prepare('UPDATE rooms SET names=? WHERE code=?').run(JSON.stringify(names), req.params.code);
   if (last_pick !== undefined) db.prepare('UPDATE rooms SET last_pick=? WHERE code=?').run(last_pick, req.params.code);
+  if (title_color !== undefined) db.prepare('UPDATE rooms SET title_color=? WHERE code=?').run(title_color, req.params.code);
+  if (title_text_color !== undefined) db.prepare('UPDATE rooms SET title_text_color=? WHERE code=?').run(title_text_color, req.params.code);
   res.json({ ok:true });
 }));
 
