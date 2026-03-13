@@ -285,6 +285,11 @@ app.delete('/rooms/:code', requireAuth, wrap((req, res) => {
   if (!room) return res.status(404).json({ error:'Room not found.' });
   if (room.owner_id !== req.user.id) return res.status(403).json({ error:'Only the owner can end the session.' });
   db.prepare('UPDATE rooms SET active=0 WHERE code=?').run(req.params.code);
+  // Clean chat + mutes after 1 hour (leave for late-joiners to read)
+  setTimeout(()=>{
+    db.prepare('DELETE FROM room_chat WHERE room_code=?').run(req.params.code);
+    db.prepare('DELETE FROM room_mutes WHERE room_code=?').run(req.params.code);
+  }, 3600000);
   res.json({ ok:true });
 }));
 
@@ -332,6 +337,51 @@ app.delete('/names/:name', requireAuth, wrap((req, res) => {
 
 app.delete('/names', requireAuth, wrap((req, res) => {
   db.prepare('DELETE FROM picker_names').run();
+  res.json({ ok:true });
+}));
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
+// POST /rooms/:code/chat — send a message
+app.post('/rooms/:code/chat', requireAuth, wrap((req, res) => {
+  const { message } = req.body;
+  if (!message || !message.trim()) return res.status(400).json({ error:'Message required.' });
+  if (message.length > 300) return res.status(400).json({ error:'Message too long.' });
+  const room = db.prepare('SELECT * FROM rooms WHERE code=?').get(req.params.code);
+  if (!room || !room.active) return res.status(410).json({ error:'Session not found or ended.' });
+  // Must be a member
+  const me = db.prepare('SELECT role FROM room_members WHERE room_code=? AND user_id=?').get(req.params.code, req.user.id);
+  if (!me) return res.status(403).json({ error:'Not a member of this session.' });
+  // Check mute
+  const muted = db.prepare('SELECT 1 FROM room_mutes WHERE room_code=? AND muted_username=?').get(req.params.code, req.user.username);
+  if (muted) return res.status(403).json({ error:'You are muted in this session.' });
+  const r = db.prepare('INSERT INTO room_chat (room_code,user_id,username,role,message) VALUES (?,?,?,?,?)').run(req.params.code, req.user.id, req.user.username, me.role, message.trim());
+  // Keep only last 200 messages per room
+  db.prepare('DELETE FROM room_chat WHERE room_code=? AND id NOT IN (SELECT id FROM room_chat WHERE room_code=? ORDER BY id DESC LIMIT 200)').run(req.params.code, req.params.code);
+  res.json({ ok:true, id: r.lastInsertRowid });
+}));
+
+// GET /rooms/:code/chat?since=<id> — get messages after id
+app.get('/rooms/:code/chat', requireAuth, wrap((req, res) => {
+  const room = db.prepare('SELECT active FROM rooms WHERE code=?').get(req.params.code);
+  if (!room) return res.status(404).json({ error:'Room not found.' });
+  if (!room.active) return res.status(410).json({ error:'Session ended.' });
+  const since = parseInt(req.query.since) || 0;
+  const msgs = db.prepare('SELECT id,username,role,message,sent_at FROM room_chat WHERE room_code=? AND id>? ORDER BY id ASC').all(req.params.code, since);
+  const mutes = db.prepare('SELECT muted_username FROM room_mutes WHERE room_code=?').all(req.params.code).map(r=>r.muted_username);
+  res.json({ messages: msgs, muted: mutes });
+}));
+
+// POST /rooms/:code/mute — mute/unmute a user
+app.post('/rooms/:code/mute', requireAuth, wrap((req, res) => {
+  const { username, mute } = req.body;
+  if (!username) return res.status(400).json({ error:'Username required.' });
+  const me = db.prepare('SELECT role FROM room_members WHERE room_code=? AND user_id=?').get(req.params.code, req.user.id);
+  if (!me || (me.role !== 'owner' && me.role !== 'admin')) return res.status(403).json({ error:'Not authorized.' });
+  if (mute) {
+    db.prepare('INSERT OR IGNORE INTO room_mutes (room_code,muted_username,muted_by) VALUES (?,?,?)').run(req.params.code, username, req.user.id);
+  } else {
+    db.prepare('DELETE FROM room_mutes WHERE room_code=? AND muted_username=?').run(req.params.code, username);
+  }
   res.json({ ok:true });
 }));
 
