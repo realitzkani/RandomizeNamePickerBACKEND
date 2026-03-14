@@ -65,6 +65,21 @@ const schema = [
     role TEXT NOT NULL DEFAULT 'viewer',
     joined_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(room_code, user_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS room_chat (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_code TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    username TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'viewer',
+    message TEXT NOT NULL,
+    sent_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS room_mutes (
+    room_code TEXT NOT NULL,
+    muted_username TEXT NOT NULL,
+    muted_by INTEGER NOT NULL,
+    PRIMARY KEY (room_code, muted_username)
   )`
 ];
 
