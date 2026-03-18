@@ -201,17 +201,17 @@ app.get('/sessions/mine', requireAuth, wrap((req, res) => {
   res.json(rows);
 }));
 
-app.post('/owner/set-admin-password', wrap((req, res) => {
-  const { ownerToken, adminPassword } = req.body;
-  if (ownerToken !== (process.env.OWNER_TOKEN||'owner-secret')) return res.status(403).json({ error:'Not authorized.' });
+app.post('/owner/set-admin-password', requireAuth, wrap((req, res) => {
+  // Only the designated owner account can set the admin password
+  const { adminPassword } = req.body;
+  if (req.user.role !== 'owner') return res.status(403).json({ error:'Not authorized.' });
   if (!adminPassword) return res.status(400).json({ error:'Password cannot be empty.' });
   db.prepare("INSERT OR REPLACE INTO settings (key,value) VALUES ('admin_password_hash',?)").run(bcrypt.hashSync(adminPassword, 10));
   res.json({ ok:true });
 }));
 
-app.delete('/owner/remove-admin-password', wrap((req, res) => {
-  const { ownerToken } = req.body;
-  if (ownerToken !== (process.env.OWNER_TOKEN||'owner-secret')) return res.status(403).json({ error:'Not authorized.' });
+app.delete('/owner/remove-admin-password', requireAuth, wrap((req, res) => {
+  if (req.user.role !== 'owner') return res.status(403).json({ error:'Not authorized.' });
   db.prepare("DELETE FROM settings WHERE key='admin_password_hash'").run();
   res.json({ ok:true });
 }));
