@@ -388,6 +388,14 @@ app.get('/rooms/:code/chat', requireAuth, wrap((req, res) => {
   res.json({ messages: msgs, muted: mutes });
 }));
 
+// DELETE /rooms/:code/chat — clear all chat (owner/admin only)
+app.delete('/rooms/:code/chat', requireAuth, wrap((req, res) => {
+  const me = db.prepare('SELECT role FROM room_members WHERE room_code=? AND user_id=?').get(req.params.code, req.user.id);
+  if(!me || (me.role !== 'owner' && me.role !== 'admin')) return res.status(403).json({ error:'Not authorized.' });
+  db.prepare('DELETE FROM room_chat WHERE room_code=?').run(req.params.code);
+  res.json({ ok:true });
+}));
+
 // POST /rooms/:code/mute — mute/unmute a user
 app.post('/rooms/:code/mute', requireAuth, wrap((req, res) => {
   const { username, mute } = req.body;
